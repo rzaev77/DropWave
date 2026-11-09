@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0a0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>DropWave — передача файлов</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0b'/%3E%3Cpath d='M4 20 Q10 8 16 20 T28 20' stroke='%23d4ff3f' stroke-width='3.5' fill='none'/%3E%3C/svg%3E">
+<!-- Tailwind CDN: используется как дополнение; вся вёрстка продублирована
+     собственным CSS ниже, поэтому интерфейс полностью работает офлайн. -->
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --card: #131316;
+    --card-2: #1a1a1f;
+    --border: #2c2c33;
+    --ink: #f2f2f0;
+    --muted: #8b8b93;
+    --accent: #d4ff3f;
+    --accent-ink: #0a0a0b;
+    --danger: #ff5470;
+    --ok: #3fdf8f;
+    --shadow: 4px 4px 0 #000;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+    min-height: 100vh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 14px 14px 40px; }
+
+  /* ---------- шапка ---------- */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 10px 0 16px;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-mark {
+    width: 40px; height: 40px; background: var(--accent); color: var(--accent-ink);
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid #000; box-shadow: var(--shadow); flex: none;
+  }
+  .logo-mark svg { width: 26px; height: 26px; }
+  .logo-title { font-size: 21px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; }
+  .logo-sub { font-size: 11px; color: var(--muted); letter-spacing: .5px; }
+  .status {
+    display: flex; align-items: center; gap: 7px;
+    border: 2px solid var(--border); background: var(--card);
+    padding: 7px 10px; font-size: 12px; font-weight: 700; white-space: nowrap;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.wait { background: #f5d90a; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  #activity {
+    font-size: 12px; color: var(--muted); min-height: 18px; margin: -8px 0 8px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ---------- карточки ---------- */
+  .card {
+    background: var(--card); border: 2px solid var(--border);
+    box-shadow: var(--shadow); margin-bottom: 16px;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 12px 14px; border-bottom: 2px solid var(--border);
+  }
+  .card-title {
+    font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.2px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .num {
+    background: var(--accent); color: var(--accent-ink); font-size: 11px;
+    padding: 1px 7px; border: 1.5px solid #000; font-weight: 800;
+  }
+  .card-body { padding: 14px; }
+
+  /* ---------- кнопки ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--card-2); color: var(--ink); border: 2px solid var(--ink);
+    box-shadow: 3px 3px 0 #000; padding: 12px 16px; font-size: 14px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .6px; cursor: pointer; user-select: none;
+    text-decoration: none; transition: transform .05s, box-shadow .05s;
+    font-family: inherit;
+  }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+  .btn-accent { background: var(--accent); color: var(--accent-ink); border-color: #000; }
+  .btn-sm { padding: 8px 10px; font-size: 12px; box-shadow: 2px 2px 0 #000; }
+  .btn-icon { padding: 8px 10px; font-size: 15px; line-height: 1; }
+  .btn-danger { border-color: var(--danger); color: var(--danger); }
+  .btn[disabled] { opacity: .45; pointer-events: none; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn-row .btn { flex: 1 1 auto; }
+
+  /* ---------- зона загрузки ---------- */
+  #dropzone {
+    border: 3px dashed var(--border); background: var(--card);
+    padding: 34px 16px; text-align: center; cursor: pointer; user-select: none;
+    transition: border-color .15s, background .15s; margin-bottom: 16px;
+  }
+  #dropzone.over { border-color: var(--accent); background: #1a1f10; }
+  #dropzone .dz-icon { font-size: 40px; line-height: 1; margin-bottom: 10px; }
+  #dropzone .dz-title { font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: .8px; }
+  #dropzone .dz-sub { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+  #file-input { display: none; }
+
+  /* ---------- элементы очереди загрузки ---------- */
+  .upload-item { border: 2px solid var(--border); background: var(--card-2); padding: 10px 12px; margin-bottom: 10px; }
+  .upload-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .upload-name {
+    flex: 1; font-weight: 700; font-size: 13.5px; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .upload-size { color: var(--muted); font-size: 12px; flex: none; font-family: ui-monospace, Consolas, monospace; }
+  .upload-cancel {
+    flex: none; background: none; border: 2px solid var(--border); color: var(--muted);
+    width: 26px; height: 26px; font-size: 13px; cursor: pointer; line-height: 1; padding: 0;
+  }
+  .upload-cancel:active { border-color: var(--danger); color: var(--danger); }
+  .bar { height: 14px; background: var(--bg); border: 2px solid var(--border); position: relative; overflow: hidden; }
+  .bar-fill {
+    height: 100%; width: 0%; background: var(--accent);
+    background-image: repeating-linear-gradient(-45deg, transparent 0 6px, rgba(0,0,0,.18) 6px 12px);
+    transition: width .2s linear;
+  }
+  .upload-item.done .bar-fill { background: var(--ok); background-image: none; }
+  .upload-item.error .bar-fill { background: var(--danger); background-image: none; }
+  .upload-meta {
+    display: flex; justify-content: space-between; gap: 8px; margin-top: 6px;
+    font-size: 11.5px; color: var(--muted); font-family: ui-monospace, Consolas, monospace;
+  }
+  .upload-meta .state-done { color: var(--ok); font-weight: 700; }
+  .upload-meta .state-error { color: var(--danger); font-weight: 700; }
+
+  /* ---------- текст ---------- */
+  textarea {
+    width: 100%; min-height: 96px; resize: vertical; background: var(--bg);
+    color: var(--ink); border: 2px solid var(--border); padding: 10px 12px;
+    font-size: 15px; font-family: inherit; outline: none; margin-bottom: 10px;
+  }
+  textarea:focus { border-color: var(--accent); }
+  #incoming-text { display: none; }
+  #incoming-text .src { font-size: 11.5px; color: var(--muted); margin-bottom: 8px; letter-spacing: .4px; }
+  #incoming-body {
+    background: var(--bg); border: 2px solid var(--border); padding: 10px 12px;
+    white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto;
+    font-size: 14px; margin-bottom: 10px; user-select: text;
+  }
+
+  /* ---------- список файлов ---------- */
+  #file-list { list-style: none; margin: 0; padding: 0; }
+  .file-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px; border-bottom: 2px solid var(--border);
+  }
+  .file-row:last-child { border-bottom: none; }
+  .file-icon {
+    flex: none; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+    background: var(--card-2); border: 2px solid var(--border); font-size: 17px;
+  }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-meta { color: var(--muted); font-size: 11.5px; font-family: ui-monospace, Consolas, monospace; margin-top: 2px; }
+  .file-actions { display: flex; gap: 8px; flex: none; }
+  .empty { color: var(--muted); text-align: center; padding: 26px 14px; font-size: 13.5px; }
+
+  /* ---------- тосты ---------- */
+  #toasts {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 100;
+    display: flex; flex-direction: column; gap: 8px; width: min(92vw, 480px);
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--accent); color: var(--accent-ink); border: 2px solid #000;
+    box-shadow: var(--shadow); padding: 11px 14px; font-weight: 800; font-size: 13.5px;
+    text-align: center; animation: toast-in .18s ease-out;
+  }
+  .toast.err { background: var(--danger); color: #fff; }
+  .toast.info { background: var(--card-2); color: var(--ink); border-color: var(--ink); }
+  @keyframes toast-in { from { transform: translateY(14px); opacity: 0; } }
+
+  footer { text-align: center; color: var(--muted); font-size: 11.5px; letter-spacing: .6px; padding-top: 6px; }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 32 32" fill="none"><path d="M3 20 Q9.5 7 16 20 T29 20" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <div class="logo-title">DropWave</div>
+        <div class="logo-sub">файлы и текст · без интернета</div>
+      </div>
+    </div>
+    <div class="status"><span class="dot wait" id="status-dot"></span><span id="status-text">Подключение…</span></div>
+  </header>
+
+  <div id="activity"></div>
+
+  <!-- Зона загрузки -->
+  <div id="dropzone" role="button" tabindex="0" aria-label="Выбрать файлы для отправки на ПК">
+    <div class="dz-icon">📡</div>
+    <div class="dz-title">Отправить файлы на ПК</div>
+    <div class="dz-sub">Перетащите сюда или нажмите для выбора · любой размер</div>
+  </div>
+  <input type="file" id="file-input" multiple>
+
+  <!-- Очередь загрузок -->
+  <div class="card" id="uploads-card" style="display:none">
+    <div class="card-head">
+      <div class="card-title">Передача <span class="num" id="uploads-count">0</span></div>
+    </div>
+    <div class="card-body" id="uploads"></div>
+  </div>
+
+  <!-- Текст -->
+  <div class="card">
+    <div class="card-head"><div class="card-title">✂️ Текст на ПК</div></div>
+    <div class="card-body">
+      <textarea id="text-input" placeholder="Вставьте или наберите текст — он появится на компьютере…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-accent" id="send-text">Отправить на ПК</button>
+        <button class="btn" id="paste-text">📋 Вставить из буфера</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Текст, полученный с ПК -->
+  <div class="card" id="incoming-text">
+    <div class="card-head">
+      <div class="card-title">📥 Текст с ПК</div>
+      <button class="btn btn-sm" id="copy-incoming">Копировать</button>
+    </div>
+    <div class="card-body">
+      <div class="src" id="incoming-src"></div>
+      <div id="incoming-body"></div>
+    </div>
+  </div>
+
+  <!-- Файлы на ПК -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">💾 Файлы на ПК <span class="num" id="files-count">0</span></div>
+      <button class="btn btn-sm btn-icon" id="refresh-files" title="Обновить список">⟳</button>
+    </div>
+    <ul id="file-list"></ul>
+    <div class="empty" id="files-empty">Папка пуста. Положите файлы в DropWave на ПК<br>или перетащите их в окно приложения.</div>
+  </div>
+
+  <footer>DROPWAVE · ЛОКАЛЬНАЯ СЕТЬ · ДАННЫЕ НЕ ПОКИДАЮТ WI-FI</footer>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+"use strict";
+
+/* ========================= утилиты ========================= */
+
+const $ = (id) => document.getElementById(id);
+
+function fmtSize(bytes) {
+  if (!Number.isFinite(bytes)) return "—";
+  const units = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
+  let i = 0, v = bytes;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return (i === 0 ? v : v.toFixed(v >= 100 ? 0 : 1)) + " " + units[i];
+}
+function fmtSpeed(bps) { return bps > 0 ? fmtSize(bps) + "/с" : "—"; }
+function fmtETA(sec) {
+  if (!Number.isFinite(sec) || sec < 0) return "—";
+  sec = Math.ceil(sec);
+  if (sec < 60) return sec + " с";
+  if (sec < 3600) return Math.floor(sec / 60) + " мин " + (sec % 60) + " с";
+  return Math.floor(sec / 3600) + " ч " + Math.floor((sec % 3600) / 60) + " мин";
+}
+function fmtDate(ts) {
+  const d = new Date(ts * 1000);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function toast(msg, kind = "") {
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " " + kind : "");
+  el.textContent = msg;
+  $("toasts").appendChild(el);
+  setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .3s"; }, 2600);
+  setTimeout(() => el.remove(), 3000);
+}
+function fileIcon(name) {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (["jpg","jpeg","png","gif","webp","heic","bmp","svg"].includes(ext)) return "🖼️";
+  if (["mp4","mov","avi","mkv","webm"].includes(ext)) return "🎬";
+  if (["mp3","wav","flac","ogg","m4a"].includes(ext)) return "🎵";
+  if (["pdf"].includes(ext)) return "📕";
+  if (["doc","docx","txt","rtf","md"].includes(ext)) return "📄";
+  if (["xls","xlsx","csv"].includes(ext)) return "📊";
+  if (["zip","rar","7z","tar","gz"].includes(ext)) return "🗜️";
+  if (["apk","exe","msi"].includes(ext)) return "⚙️";
+  return "📦";
+}
+function deviceName() {
+  const ua = navigator.userAgent;
+  let os = "Устройство";
+  if (/android/i.test(ua)) os = "Android";
+  else if (/iphone/i.test(ua)) os = "iPhone";
+  else if (/ipad/i.test(ua)) os = "iPad";
+  else if (/windows/i.test(ua)) os = "Windows";
+  else if (/mac os/i.test(ua)) os = "macOS";
+  else if (/linux/i.test(ua)) os = "Linux";
+  let br = "";
+  if (/edg\//i.test(ua)) br = "Edge";
+  else if (/firefox|fxios/i.test(ua)) br = "Firefox";
+  else if (/chrome|crios/i.test(ua)) br = "Chrome";
+  else if (/safari/i.test(ua)) br = "Safari";
+  return br ? `${os} · ${br}` : os;
+}
+const DEVICE = deviceName();
+
+/* Копирование с fallback для http (не secure context). */
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (_) { /* переходим к fallback */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;opacity:0;left:0;top:0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch (_) { return false; }
+}
+
+/* ========================= WebSocket ========================= */
+
+let ws = null;
+let reconnectDelay = 1000;
+let pingTimer = null;
+let wsAlive = false;
+
+function setStatus(state) {
+  const dot = $("status-dot"), txt = $("status-text");
+  dot.className = "dot" + (state === "on" ? " on" : state === "wait" ? " wait" : "");
+  txt.textContent = state === "on" ? "На связи" : state === "wait" ? "Переподключение…" : "Нет связи";
+}
+
+function wsSend(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
+    return true;
+  }
+  return false;
+}
+
+function connectWS() {
+  setStatus("wait");
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  try {
+    ws = new WebSocket(`${proto}//${location.host}/ws?device=${encodeURIComponent(DEVICE)}`);
+  } catch (_) { scheduleReconnect(); return; }
+
+  ws.onopen = () => {
+    wsAlive = true;
+    reconnectDelay = 1000;
+    setStatus("on");
+    clearInterval(pingTimer);
+    pingTimer = setInterval(() => wsSend({ type: "ping", ts: Date.now() }), 25000);
+    wsSend({ type: "get_files" });
+  };
+
+  ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (_) { return; }
+    switch (msg.type) {
+      case "hello":
+        if (Array.isArray(msg.files)) renderFiles(msg.files);
+        break;
+      case "files":
+        renderFiles(msg.files || []);
+        break;
+      case "file_added":
+        refreshFiles();
+        break;
+      case "file_removed":
+        refreshFiles();
+        break;
+      case "text":
+        showIncomingText(msg.text || "", msg.source || "ПК");
+        break;
+      case "ping":
+        wsSend({ type: "pong", ts: msg.ts });
+        break;
+      case "progress":
+        showActivity(msg);
+        break;
+      case "clients":
+        break;
+    }
+  };
+
+  ws.onclose = () => {
+    wsAlive = false;
+    clearInterval(pingTimer);
+    setStatus("off");
+    scheduleReconnect();
+  };
+  ws.onerror = () => { try { ws.close(); } catch (_) {} };
+}
+
+function scheduleReconnect() {
+  setTimeout(connectWS, reconnectDelay);
+  reconnectDelay = Math.min(reconnectDelay * 1.7, 10000);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && (!ws || ws.readyState === WebSocket.CLOSED)) {
+    reconnectDelay = 1000;
+    connectWS();
+  }
+});
+
+/* Активность других передач (например, ПК отдаёт файл другому устройству). */
+let activityTimer = null;
+function showActivity(p) {
+  if (!p || !p.name) return;
+  const el = $("activity");
+  const verb = p.direction === "upload" ? "приём" : "отдача";
+  if (p.state === "active") {
+    el.textContent = `⇅ ${verb}: ${p.name} — ${p.percent}% · ${fmtSpeed(p.speed)}`;
+  } else if (p.state === "done") {
+    el.textContent = `✓ ${verb} завершён: ${p.name}`;
+  } else {
+    el.textContent = "";
+  }
+  clearTimeout(activityTimer);
+  activityTimer = setTimeout(() => { el.textContent = ""; }, 5000);
+}
+
+/* ========================= список файлов ========================= */
+
+let filesCache = [];
+
+function renderFiles(files) {
+  filesCache = files;
+  const list = $("file-list");
+  list.textContent = "";
+  $("files-count").textContent = files.length;
+  $("files-empty").style.display = files.length ? "none" : "block";
+  for (const f of files) {
+    const li = document.createElement("li");
+    li.className = "file-row";
+
+    const icon = document.createElement("div");
+    icon.className = "file-icon";
+    icon.textContent = fileIcon(f.name);
+
+    const info = document.createElement("div");
+    info.className = "file-info";
+    const nm = document.createElement("div");
+    nm.className = "file-name";
+    nm.textContent = f.name;
+    nm.title = f.name;
+    const meta = document.createElement("div");
+    meta.className = "file-meta";
+    meta.textContent = `${fmtSize(f.size)} · ${fmtDate(f.mtime)}`;
+    info.append(nm, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "file-actions";
+    const dl = document.createElement("a");
+    dl.className = "btn btn-sm btn-accent btn-icon";
+    dl.href = "/download/" + encodeURIComponent(f.name);
+    dl.setAttribute("download", f.name);
+    dl.textContent = "⬇";
+    dl.title = "Скачать " + f.name;
+    dl.addEventListener("click", () => toast("Скачивание: " + f.name, "info"));
+    const del = document.createElement("button");
+    del.className = "btn btn-sm btn-icon btn-danger";
+    del.textContent = "✕";
+    del.title = "Удалить с ПК";
+    del.addEventListener("click", async () => {
+      if (!confirm(`Удалить «${f.name}» с ПК?`)) return;
+      try {
+        const r = await fetch("/api/files/" + encodeURIComponent(f.name), { method: "DELETE" });
+        if (!r.ok) throw new Error();
+        toast("Удалено: " + f.name, "info");
+        refreshFiles();
+      } catch (_) { toast("Не удалось удалить файл", "err"); }
+    });
+    actions.append(dl, del);
+    li.append(icon, info, actions);
+    list.appendChild(li);
+  }
+}
+
+async function refreshFiles() {
+  try {
+    const r = await fetch("/api/files", { cache: "no-store" });
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    renderFiles(data.files || []);
+  } catch (_) { /* сервер мог временно пропасть — WS пришлёт обновление */ }
+}
+$("refresh-files").addEventListener("click", refreshFiles);
+
+/* ========================= загрузка файлов ========================= */
+
+const uploadQueue = [];
+let activeUploads = 0;
+const MAX_PARALLEL = 2;
+let wakeLock = null;
+
+async function requestWakeLock() {
+  try {
+    if ("wakeLock" in navigator && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    }
+  } catch (_) { /* не критично */ }
+}
+function releaseWakeLockIfIdle() {
+  if (activeUploads === 0 && uploadQueue.length === 0 && wakeLock) {
+    try { wakeLock.release(); } catch (_) {}
+    wakeLock = null;
+  }
+}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && activeUploads > 0) requestWakeLock();
+});
+
+function enqueueFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  for (const f of files) uploadQueue.push(f);
+  $("uploads-card").style.display = "block";
+  updateUploadsCount();
+  requestWakeLock();
+  pumpQueue();
+}
+
+function updateUploadsCount() {
+  $("uploads-count").textContent = activeUploads + uploadQueue.length;
+}
+
+function pumpQueue() {
+  while (activeUploads < MAX_PARALLEL && uploadQueue.length) {
+    const file = uploadQueue.shift();
+    activeUploads++;
+    updateUploadsCount();
+    startUpload(file);
+  }
+}
+
+function startUpload(file) {
+  const item = document.createElement("div");
+  item.className = "upload-item";
+
+  const top = document.createElement("div");
+  top.className = "upload-top";
+  const name = document.createElement("div");
+  name.className = "upload-name";
+  name.textContent = file.name;
+  name.title = file.name;
+  const size = document.createElement("div");
+  size.className = "upload-size";
+  size.textContent = fmtSize(file.size);
+  const cancel = document.createElement("button");
+  cancel.className = "upload-cancel";
+  cancel.textContent = "✕";
+  cancel.title = "Отменить";
+  top.append(name, size, cancel);
+
+  const bar = document.createElement("div");
+  bar.className = "bar";
+  const fill = document.createElement("div");
+  fill.className = "bar-fill";
+  bar.appendChild(fill);
+
+  const meta = document.createElement("div");
+  meta.className = "upload-meta";
+  const left = document.createElement("span");
+  left.textContent = "0%";
+  const right = document.createElement("span");
+  right.textContent = "подготовка…";
+  meta.append(left, right);
+
+  item.append(top, bar, meta);
+  $("uploads").prepend(item);
+
+  const xhr = new XMLHttpRequest();
+  let lastT = performance.now(), lastLoaded = 0, speed = 0, finished = false;
+
+  cancel.addEventListener("click", () => { if (!finished) xhr.abort(); });
+
+  xhr.upload.onprogress = (ev) => {
+    if (!ev.lengthComputable) return;
+    const now = performance.now();
+    const dt = (now - lastT) / 1000;
+    if (dt >= 0.25) {
+      const instant = (ev.loaded - lastLoaded) / dt;
+      speed = speed ? speed * 0.65 + instant * 0.35 : instant;
+      lastT = now; lastLoaded = ev.loaded;
+    }
+    const pct = Math.min(100, (ev.loaded / ev.total) * 100);
+    fill.style.width = pct.toFixed(1) + "%";
+    left.textContent = pct.toFixed(0) + "% · " + fmtSize(ev.loaded);
+    const eta = speed > 0 ? (ev.total - ev.loaded) / speed : NaN;
+    right.textContent = fmtSpeed(speed) + " · ост. " + fmtETA(eta);
+  };
+
+  const finish = (ok, errMsg) => {
+    if (finished) return;
+    finished = true;
+    activeUploads--;
+    updateUploadsCount();
+    cancel.remove();
+    if (ok) {
+      item.classList.add("done");
+      fill.style.width = "100%";
+      left.innerHTML = '<span class="state-done">✓ Доставлено</span>';
+      right.textContent = fmtSize(file.size);
+      setTimeout(() => { item.remove(); maybeHideUploads(); }, 6000);
+    } else {
+      item.classList.add("error");
+      left.innerHTML = '<span class="state-error">✕ ' + (errMsg || "Ошибка") + "</span>";
+      right.textContent = "";
+      const retry = document.createElement("button");
+      retry.className = "btn btn-sm";
+      retry.textContent = "Повторить";
+      retry.style.marginTop = "8px";
+      retry.addEventListener("click", () => { item.remove(); enqueueFiles([file]); });
+      item.appendChild(retry);
+    }
+    releaseWakeLockIfIdle();
+    pumpQueue();
+  };
+
+  xhr.onload = () => {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      finish(true);
+    } else {
+      let msg = "Ошибка " + xhr.status;
+      try { msg = JSON.parse(xhr.responseText).detail || msg; } catch (_) {}
+      finish(false, msg);
+      toast("Не удалось отправить " + file.name, "err");
+    }
+  };
+  xhr.onerror = () => { finish(false, "Сеть недоступна"); toast("Сбой сети при отправке", "err"); };
+  xhr.onabort = () => { finish(false, "Отменено"); };
+  xhr.ontimeout = () => { finish(false, "Таймаут"); };
+
+  xhr.open("POST", "/upload");
+  xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+  xhr.setRequestHeader("X-Device", encodeURIComponent(DEVICE));
+  xhr.setRequestHeader("Content-Type", "application/octet-stream");
+  xhr.timeout = 0; // без таймаута: файлы любого размера
+  xhr.send(file);
+}
+
+function maybeHideUploads() {
+  if (!$("uploads").children.length) $("uploads-card").style.display = "none";
+}
+
+/* Drag & Drop + выбор тапом */
+const dz = $("dropzone");
+const input = $("file-input");
+dz.addEventListener("click", () => input.click());
+dz.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") input.click(); });
+input.addEventListener("change", () => { enqueueFiles(input.files); input.value = ""; });
+
+["dragenter", "dragover"].forEach((ev) =>
+  dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) =>
+  dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("over"); }));
+dz.addEventListener("drop", (e) => enqueueFiles(e.dataTransfer.files));
+/* чтобы браузер не открывал файл, промахнувшийся мимо зоны */
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => e.preventDefault());
+
+/* ========================= текст ========================= */
+
+async function sendText() {
+  const text = $("text-input").value;
+  if (!text.trim()) { toast("Введите текст", "err"); return; }
+  if (wsSend({ type: "text", text })) {
+    toast("Текст отправлен на ПК ✓");
+    $("text-input").value = "";
+  } else {
+    try {
+      const r = await fetch("/api/text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, device: DEVICE }),
+      });
+      if (!r.ok) throw new Error();
+      toast("Текст отправлен на ПК ✓");
+      $("text-input").value = "";
+    } catch (_) { toast("Нет связи с ПК", "err"); }
+  }
+}
+$("send-text").addEventListener("click", sendText);
+
+$("paste-text").addEventListener("click", async () => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        $("text-input").value = text;
+        toast("Вставлено из буфера ✓");
+        return;
+      }
+    }
+  } catch (_) { /*permission denied / http-контекст */ }
+  $("text-input").focus();
+  toast("Нажмите и удерживайте поле → «Вставить»", "info");
+});
+
+let incomingText = "";
+function showIncomingText(text, source) {
+  incomingText = text;
+  $("incoming-text").style.display = "block";
+  $("incoming-body").textContent = text;
+  $("incoming-src").textContent = `источник: ${source} · ${new Date().toLocaleTimeString()}`;
+  toast("Получен текст с ПК 📥");
+  if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) {
+    try { navigator.vibrate(80); } catch (_) {}
+  }
+}
+$("copy-incoming").addEventListener("click", async () => {
+  const ok = await copyText(incomingText);
+  toast(ok ? "Скопировано ✓" : "Выделите текст и скопируйте вручную", ok ? "" : "info");
+});
+
+/* ========================= старт ========================= */
+
+connectWS();
+refreshFiles();
+</script>
+</body>
+</html>
